@@ -6,7 +6,8 @@ import { getProfile, saveProfile } from '../data/store'
 const CARD =
   'rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)]'
 const INPUT =
-  'mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-100 placeholder:text-zinc-600 ' +
+  'mt-2 block w-full min-w-0 max-w-full box-border ' +
+  'rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-100 placeholder:text-zinc-600 ' +
   'focus:outline-none focus:ring-2 focus:ring-pink-400/40 focus:border-pink-400/40'
 
 function todayISO(): string {

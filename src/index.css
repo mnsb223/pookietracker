@@ -18,6 +18,15 @@ html{
   text-rendering: optimizeLegibility;
 }
 
+html, body{
+  overflow-x: hidden;
+}
+
+input[type="date"]{
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 body{
   margin:0;
   background:#09090b;

@@ -29,10 +29,6 @@ export default function App() {
                 <h1 className="text-2xl font-bold tracking-tight">
                   Pookie Tracker <span className="text-pink-300">♡</span>
                 </h1>
-
-                <div className="rounded-full border border-zinc-800 bg-zinc-900/40 px-3 py-1 text-xs text-zinc-300">
-                  PWA
-                </div>
               </div>
 
               <p className="mt-2 text-sm text-zinc-400">
