@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getProfile, getLogsInRange } from '../data/store'
+import { getLogsInRange, getProfile } from '../data/store'
 import type { DailyLog } from '../lib/types'
 import { DEFAULT_BMR, MIN_DEFICIT, BONUS_DEFICIT, GYM_MIN_PER_WEEK } from '../lib/config'
 import { caloriesOut, deficit } from '../lib/rules'
+
+const CARD =
+  'rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)]'
+const INPUT =
+  'mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-100 placeholder:text-zinc-600 ' +
+  'focus:outline-none focus:ring-2 focus:ring-pink-400/40 focus:border-pink-400/40'
 
 function isoToday(): string {
   const d = new Date()
@@ -30,54 +36,45 @@ function addDays(dateISO: string, days: number): string {
   return toISODate(d)
 }
 
-/**
- * Returns the Monday of the week containing dateISO (Mon–Sun weeks)
- */
 function startOfWeekMonday(dateISO: string): string {
   const d = parseISODate(dateISO)
-  const day = d.getDay() // Sun=0, Mon=1, ... Sat=6
-  const diffToMonday = (day + 6) % 7 // Mon->0, Tue->1, ..., Sun->6
+  const day = d.getDay() // Sun=0..Sat=6
+  const diffToMonday = (day + 6) % 7
   d.setDate(d.getDate() - diffToMonday)
   return toISODate(d)
 }
 
 export default function Week() {
+  const [anchorDate, setAnchorDate] = useState<string>(isoToday())
+  const [loading, setLoading] = useState(false)
+  const [logs, setLogs] = useState<DailyLog[]>([])
   const [bmr, setBmr] = useState<number>(DEFAULT_BMR)
 
+  // Load profile BMR once
   useEffect(() => {
     let cancelled = false
-
     async function loadProfile() {
       const profile = await getProfile()
       if (cancelled) return
       if (profile?.bmr) setBmr(profile.bmr)
     }
-
     loadProfile()
-
     return () => {
       cancelled = true
     }
   }, [])
-  
-  const [anchorDate, setAnchorDate] = useState<string>(isoToday())
-  const [loading, setLoading] = useState(false)
-  const [logs, setLogs] = useState<DailyLog[]>([])
 
   const weekStart = useMemo(() => startOfWeekMonday(anchorDate), [anchorDate])
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
 
-  // Map logs by date for quick lookup
   const logsByDate = useMemo(() => {
     const map = new Map<string, DailyLog>()
     for (const l of logs) map.set(l.date, l)
     return map
   }, [logs])
 
-  // Load logs whenever the week changes
   useEffect(() => {
     let cancelled = false
-
     async function load() {
       setLoading(true)
       const weekLogs = await getLogsInRange(weekStart, weekEnd)
@@ -85,19 +82,15 @@ export default function Week() {
       setLogs(weekLogs)
       setLoading(false)
     }
-
     load()
     return () => {
       cancelled = true
     }
   }, [weekStart, weekEnd])
 
-  // Build the 7 days in this week
-  const days = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  }, [weekStart])
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
+  const dow = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
-  // Compute day-by-day status + weekly totals
   const summary = useMemo(() => {
     let loggedDays = 0
     let gymDays = 0
@@ -114,73 +107,78 @@ export default function Week() {
       if (log.gym) gymDays++
 
       const out = caloriesOut(bmr, log.caloriesBurned)
-      const def = deficit(out, log.caloriesEaten)
+      const defVal = deficit(out, log.caloriesEaten)
 
-      const met700 = def >= MIN_DEFICIT
-      const met1000 = def >= BONUS_DEFICIT
+      const met700 = defVal >= MIN_DEFICIT
+      const met1000 = defVal >= BONUS_DEFICIT
 
       if (met700) metMinDays++
       if (met1000) dollars++
 
-      return { date, hasLog: true, gym: log.gym, def, met700, met1000 }
+      return { date, hasLog: true, gym: log.gym, def: defVal, met700, met1000 }
     })
 
-    const caloriesConsistent = metMinDays === 7 // strict 7/7
-    const gymConsistent = gymDays >= GYM_MIN_PER_WEEK // 3/7
+    const caloriesConsistent = metMinDays === 7
+    const gymConsistent = gymDays >= GYM_MIN_PER_WEEK
     const weekSuccessful = caloriesConsistent && gymConsistent
 
-    return {
-      dayStatus,
-      loggedDays,
-      gymDays,
-      metMinDays,
-      dollars,
-      caloriesConsistent,
-      gymConsistent,
-      weekSuccessful,
-    }
+    return { dayStatus, loggedDays, gymDays, metMinDays, dollars, caloriesConsistent, gymConsistent, weekSuccessful }
   }, [days, logsByDate, bmr])
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Week</h2>
-        {loading && <span className="text-sm text-zinc-400">Loading...</span>}
+      <div className="flex items-end justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Week</h2>
+          <p className="mt-1 text-sm text-zinc-400">Mon → Sun · strict 7/7 on deficit</p>
+        </div>
+        {loading && (
+          <div className="rounded-full border border-zinc-800 bg-zinc-900/40 px-3 py-1 text-xs text-zinc-300">
+            Loading…
+          </div>
+        )}
       </div>
 
-      {/* Pick a date to choose the week */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
-        <label className="block text-sm text-zinc-300">Pick any date in the week</label>
+      <div className={CARD}>
+        <label className="block text-sm font-medium text-zinc-300">Pick any date in the week</label>
         <input
           type="date"
           value={anchorDate}
           onChange={(e) => setAnchorDate(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          className={INPUT}
         />
         <p className="mt-2 text-sm text-zinc-400">
           Week: <span className="text-zinc-200">{weekStart}</span> →{' '}
           <span className="text-zinc-200">{weekEnd}</span>
         </p>
+        <p className="mt-1 text-xs text-zinc-500">Using BMR: {bmr}</p>
       </div>
 
-      {/* Day pills */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+      <div className={CARD}>
         <div className="grid grid-cols-7 gap-2">
-          {summary.dayStatus.map((d) => {
-            const base =
-              'rounded-xl border px-2 py-2 text-center text-xs font-medium'
+          {summary.dayStatus.map((d, i) => {
             const cls = !d.hasLog
               ? 'border-zinc-800 bg-zinc-950 text-zinc-500'
-              : d.met700
-                ? 'border-pink-400/40 bg-pink-500/10 text-pink-200'
-                : 'border-red-400/30 bg-red-500/10 text-red-200'
+              : d.met1000
+                ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+                : d.met700
+                  ? 'border-pink-400/40 bg-pink-500/15 text-pink-200'
+                  : 'border-red-400/30 bg-red-500/10 text-red-200'
 
-            const label = d.date.slice(8, 10) // day of month
+            const dayNum = d.date.slice(8, 10)
 
             return (
-              <div key={d.date} className={[base, cls].join(' ')}>
-                <div className="text-sm">{label}</div>
-                <div className="mt-1 flex justify-center gap-1">
+              <div
+                key={d.date}
+                className={[
+                  'rounded-2xl border px-2 py-3 text-center transition',
+                  cls,
+                ].join(' ')}
+              >
+                <div className="text-[10px] font-semibold opacity-80">{dow[i]}</div>
+                <div className="text-sm font-bold">{dayNum}</div>
+
+                <div className="mt-1 flex justify-center gap-1 text-xs">
                   {d.hasLog && d.gym && <span title="Gym">🏋️</span>}
                   {d.hasLog && d.met1000 && <span title="+$1">💗</span>}
                   {d.hasLog && d.met700 && !d.met1000 && <span title="700 met">✓</span>}
@@ -190,48 +188,42 @@ export default function Week() {
             )
           })}
         </div>
-
-        <p className="mt-3 text-xs text-zinc-500">
-          Using BMR: {bmr}
-        </p>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className={CARD}>
           <p className="text-sm text-zinc-400">Logged</p>
-          <p className="text-2xl font-bold">{summary.loggedDays}/7</p>
+          <p className="text-3xl font-bold tracking-tight">{summary.loggedDays}/7</p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className={CARD}>
           <p className="text-sm text-zinc-400">Gym</p>
-          <p className="text-2xl font-bold">{summary.gymDays}/{GYM_MIN_PER_WEEK}</p>
+          <p className="text-3xl font-bold tracking-tight">{summary.gymDays}/{GYM_MIN_PER_WEEK}</p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className={CARD}>
           <p className="text-sm text-zinc-400">700+ days</p>
-          <p className="text-2xl font-bold">{summary.metMinDays}/7</p>
+          <p className="text-3xl font-bold tracking-tight">{summary.metMinDays}/7</p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className={CARD}>
           <p className="text-sm text-zinc-400">+$ earned</p>
-          <p className="text-2xl font-bold">{summary.dollars}</p>
+          <p className="text-3xl font-bold tracking-tight">{summary.dollars}</p>
         </div>
       </div>
 
-      {/* Success banner */}
       <div
         className={[
-          'rounded-2xl border p-4',
+          'rounded-3xl border p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)]',
           summary.weekSuccessful
-            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-            : 'border-zinc-800 bg-zinc-900/50 text-zinc-200',
+            ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+            : 'border-zinc-800 bg-zinc-900/40 text-zinc-200',
         ].join(' ')}
       >
-        <p className="font-semibold">
+        <p className="text-lg font-bold tracking-tight">
           {summary.weekSuccessful ? 'Week successful ✓' : 'Week not yet'}
         </p>
-        <p className="mt-1 text-sm text-zinc-300">
+        <p className="mt-2 text-sm text-zinc-300">
           Calories: {summary.caloriesConsistent ? '7/7 met' : `${summary.metMinDays}/7 met`} · Gym:{' '}
           {summary.gymConsistent ? '3+ days met' : `${summary.gymDays}/3`}
         </p>

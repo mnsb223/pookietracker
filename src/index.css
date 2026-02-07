@@ -1,3 +1,76 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ---------- Premium app polish ---------- */
+:root{
+  color-scheme: dark;
+
+  --accent: 236 72 153;    /* pink */
+  --success: 16 185 129;   /* emerald */
+  --danger: 239 68 68;     /* red */
+
+  --hairline: rgba(255,255,255,.08);
+  --panel: rgba(24,24,27,.45);
+  --panel2: rgba(9,9,11,.65);
+}
+
+html{
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+
+body{
+  margin:0;
+  background:#09090b;
+  color:#f4f4f5;
+  font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Display", "SF Pro Text",
+    Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  letter-spacing:-0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*{ -webkit-tap-highlight-color: transparent; }
+::selection{ background: rgba(var(--accent), .25); }
+
+/* Better iOS date input */
+input[type="date"]{ color-scheme: dark; }
+
+/* Remove number spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+input[type="number"]{ -moz-appearance:textfield; }
+
+/* ---------- Handy classes you can use in TSX ---------- */
+.app-bg{
+  background:
+    radial-gradient(900px circle at 15% -10%, rgba(var(--accent), .18), transparent 45%),
+    radial-gradient(800px circle at 110% 0%, rgba(var(--success), .14), transparent 40%),
+    #09090b;
+}
+
+.phone-shell{
+  background: rgba(9,9,11,.55);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 2.5rem;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 20px 70px rgba(0,0,0,.6);
+}
+
+.card{
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+.pill{
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(9,9,11,.7);
+}
+
+.press{
+  transition: transform 160ms ease, background-color 160ms ease, opacity 160ms ease;
+}
+.press:active{ transform: scale(.99); }
