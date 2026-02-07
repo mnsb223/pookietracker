@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import BottomNav from './components/BottomNav'
 
 import Today from './pages/Today'
@@ -10,19 +10,7 @@ type TabKey = 'today' | 'week' | 'history' | 'profile'
 
 export default function App() {
   const [tab, setTab] = useState<TabKey>('today')
-
-  const Page = useMemo(() => {
-    switch (tab) {
-      case 'today':
-        return Today
-      case 'week':
-        return Week
-      case 'history':
-        return History
-      case 'profile':
-        return Profile
-    }
-  }, [tab])
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -37,7 +25,20 @@ export default function App() {
         </header>
 
         <main>
-          <Page />
+          {tab === 'today' && <Today selectedDate={selectedDate ?? undefined} />}
+
+          {tab === 'week' && <Week />}
+
+          {tab === 'history' && (
+            <History
+              onOpenDate={(date) => {
+                setSelectedDate(date)
+                setTab('today')
+              }}
+            />
+          )}
+
+          {tab === 'profile' && <Profile />}
         </main>
       </div>
 
