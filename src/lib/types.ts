@@ -14,4 +14,5 @@ export type DailyLog = {
   caloriesEaten: number
   caloriesBurned: number
   gym: boolean
+  cheat?: boolean
 }

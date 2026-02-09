@@ -7,6 +7,8 @@ export const BONUS_DEFICIT = 1000
 export const GYM_MIN_PER_WEEK = 3
 export const CONSISTENCY_DAYS = 5   // days per week that must hit MIN_DEFICIT
 
+export const MAX_CHEAT_DAYS_PER_WEEK = 1
+
 export const PROGRAM_WEEKS = 9
 
 // Default profile values

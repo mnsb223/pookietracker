@@ -3,13 +3,6 @@ import { DEFAULT_BMR, DEFAULT_GOAL_WEIGHT } from '../lib/config'
 import type { Profile } from '../lib/types'
 import { getProfile, saveProfile } from '../data/store'
 
-const CARD =
-  'rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)]'
-const INPUT =
-  'mt-2 block w-full min-w-0 max-w-full box-border ' +
-  'rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-100 placeholder:text-zinc-600 ' +
-  'focus:outline-none focus:ring-2 focus:ring-pink-400/40 focus:border-pink-400/40'
-
 function todayISO(): string {
   const d = new Date()
   const y = d.getFullYear()
@@ -44,9 +37,7 @@ export default function Profile() {
     }
 
     load()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [])
 
   const bmrNum = useMemo(() => {
@@ -75,64 +66,60 @@ export default function Profile() {
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Profile</h2>
-          <p className="mt-1 text-sm text-zinc-400">These settings affect calculations.</p>
+          <h2 className="text-2xl font-extrabold tracking-tight y2k-title">Profile</h2>
+          <p className="mt-1 text-sm y2k-subtitle">Make it cute, make it accurate.</p>
         </div>
-
-        {loading && (
-          <div className="rounded-full border border-zinc-800 bg-zinc-900/40 px-3 py-1 text-xs text-zinc-300">
-            Loading…
-          </div>
-        )}
+        {loading && <div className="y2k-pill text-xs">Loading…</div>}
       </div>
 
-      <div className={[CARD, 'space-y-4'].join(' ')}>
+      <div className="y2k-card p-5 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-zinc-300">Sedentary BMR</label>
+          <label className="block text-sm font-extrabold text-zinc-200">Sedentary BMR</label>
           <input
             inputMode="numeric"
             value={bmr}
             onChange={(e) => setBmr(e.target.value)}
-            className={INPUT}
+            className="y2k-input mt-2"
           />
-          <p className="mt-1 text-xs text-zinc-500">Used for calories out: BMR + burned.</p>
+          <p className="mt-1 text-xs text-zinc-400">Used for calories out: BMR + burned.</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-300">Goal weight</label>
+          <label className="block text-sm font-extrabold text-zinc-200">Goal weight</label>
           <input
             inputMode="numeric"
             value={goalWeight}
             onChange={(e) => setGoalWeight(e.target.value)}
-            className={INPUT}
+            className="y2k-input mt-2"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-300">Program start date</label>
+          <label className="block text-sm font-extrabold text-zinc-200">Program start date</label>
           <input
             type="date"
             value={programStartDate}
             onChange={(e) => setProgramStartDate(e.target.value)}
-            className={INPUT}
+            className="y2k-input mt-2"
           />
         </div>
 
         <button
           type="button"
           onClick={handleSave}
-          className="w-full rounded-2xl border border-pink-400/40 bg-pink-500/15 px-4 py-3 font-semibold text-pink-200 transition hover:bg-pink-500/20 active:scale-[0.99]"
+          className="y2k-btn y2k-btn-primary"
         >
-          Save profile
+          Save profile ✧
         </button>
 
         {saveState === 'saved' && (
-          <p className="text-sm font-semibold text-pink-200">Saved ✓</p>
+          <p className="text-sm font-extrabold text-pink-200">Saved ✓</p>
         )}
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <p className="text-sm text-zinc-300">Current effective BMR:</p>
-          <p className="mt-1 text-2xl font-bold tracking-tight">{bmrNum}</p>
+        <div className="y2k-card p-4">
+          <p className="text-sm text-zinc-300">Effective BMR</p>
+          <p className="mt-1 text-2xl font-extrabold tracking-tight">{bmrNum}</p>
+          <p className="mt-1 text-sm text-zinc-300">Goal weight: {goalWeightNum}</p>
         </div>
       </div>
     </div>
