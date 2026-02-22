@@ -102,7 +102,15 @@ export default function Week() {
     const dayStatus = days.map((date) => {
       const log = logsByDate.get(date)
       if (!log) {
-        return { date, hasLog: false, gym: false, cheat: false, def: 0, met700: false, met1000: false }
+        return {
+          date,
+          hasLog: false,
+          gym: false,
+          cheat: false,
+          def: 0,
+          met700: false,
+          met1000: false,
+        }
       }
 
       loggedDays++
@@ -111,16 +119,16 @@ export default function Week() {
       const isCheat = !!log.cheat
       if (isCheat) cheatDays++
 
-      const out = caloriesOut(bmr, log.caloriesBurned)
-      const def = deficit(out, log.caloriesEaten)
+      const out = caloriesOut(bmr, log.caloriesBurned ?? 0)
+      const defValue = deficit(out, log.caloriesEaten ?? 0)
 
-      const met700 = isCheat ? true : def >= MIN_DEFICIT
-      const met1000 = isCheat ? false : def >= BONUS_DEFICIT
+      const met700 = isCheat ? true : defValue >= MIN_DEFICIT
+      const met1000 = isCheat ? false : defValue >= BONUS_DEFICIT
 
       if (met700) metDays++
       if (met1000) dollars++
 
-      return { date, hasLog: true, gym: log.gym, cheat: isCheat, def, met700, met1000 }
+      return { date, hasLog: true, gym: !!log.gym, cheat: isCheat, def: defValue, met700, met1000 }
     })
 
     const caloriesConsistent = metDays === 7 && cheatDays <= MAX_CHEAT_DAYS_PER_WEEK
@@ -147,44 +155,58 @@ export default function Week() {
         {loading && <span className="text-sm opacity-70">Loading...</span>}
       </div>
 
-      <div className="rounded-2xl border p-4 y2k-card">
-        <label className="block text-sm">Pick any date in the week</label>
+      <div className="rounded-2xl border p-5 y2k-card">
+        <label className="block text-sm font-extrabold">Pick any date in the week</label>
         <input
           type="date"
           value={anchorDate}
           onChange={(e) => setAnchorDate(e.target.value)}
-          className="mt-2 y2k-input"
+          className="mt-3 y2k-input"
         />
-        <p className="mt-2 text-sm opacity-80">
-          Week: <span className="font-semibold">{weekStart}</span> → <span className="font-semibold">{weekEnd}</span>
+        <p className="mt-3 text-sm opacity-80">
+          Week: <span className="font-extrabold">{weekStart}</span> →{' '}
+          <span className="font-extrabold">{weekEnd}</span>
         </p>
         <p className="mt-1 text-xs opacity-80">Using BMR: {bmr}</p>
       </div>
 
-      <div className="rounded-2xl border p-4 y2k-card">
-        <div className="grid grid-cols-7 gap-2">
+      {/* Bigger calendar grid + show deficit */}
+      <div className="rounded-2xl border p-5 y2k-card">
+        <div className="grid grid-cols-7 gap-3">
           {summary.dayStatus.map((d, i) => {
-            const base = 'rounded-xl border px-2 py-2 text-center text-xs font-medium'
-            const cls = !d.hasLog ? 'opacity-70' : d.met700 ? '' : 'opacity-90'
-
-            // Sun → Sat labels (week starts Sunday in this view)
-            const dow = ['S', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'][i] ?? ''
-
-            // Day of month (09, 10, 11...)
+            const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i] ?? ''
             const dayNum = d.date.slice(8, 10)
 
-            return (
-              <div key={d.date} className={`${base} ${cls}`}>
-                <div className="text-[10px] opacity-80">{dow}</div>
-                <div className="text-sm font-bold leading-tight">{dayNum}</div>
+            const base =
+              'rounded-2xl border p-3 text-center font-extrabold flex flex-col justify-between min-h-[110px]'
+            const faded = !d.hasLog ? 'opacity-70' : ''
+            const notMet = d.hasLog && !d.met700 ? 'opacity-95' : ''
 
-                <div className="mt-1 flex justify-center gap-1 text-[10px]">
+            return (
+              <div key={d.date} className={`${base} ${faded} ${notMet}`}>
+                <div>
+                  <div className="text-[11px] opacity-80">{dow}</div>
+                  <div className="text-xl leading-tight">{dayNum}</div>
+                </div>
+
+                <div className="mt-2">
+                  {d.hasLog ? (
+                    <div className="text-sm font-extrabold">
+                      Deficit {d.def.toFixed(0)}
+                    </div>
+                  ) : (
+                    <div className="text-sm opacity-80">Not logged</div>
+                  )}
+                </div>
+
+                <div className="mt-2 flex justify-center gap-2 text-[12px] font-extrabold">
                   {d.hasLog ? (
                     <>
-                      {d.gym && <span title="Gym">G</span>}
-                      {d.cheat && <span title="Cheat">C</span>}
-                      {d.met1000 && !d.cheat && <span title="+$1">+1</span>}
-                      {!d.cheat && d.met700 && !d.met1000 && <span title="700 met">✓</span>}
+                      {d.gym && <span title="Gym">Gym</span>}
+                      {d.cheat && <span title="Cheat">Cheat</span>}
+                      {d.met1000 && !d.cheat && <span title="Bonus">+1</span>}
+                      {!d.cheat && d.met700 && !d.met1000 && <span title="Minimum met">700</span>}
+                      {!d.met700 && <span title="Minimum not met">Low</span>}
                     </>
                   ) : (
                     <span title="Not logged">—</span>
@@ -197,32 +219,32 @@ export default function Week() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border p-4 y2k-card">
+        <div className="rounded-2xl border p-5 y2k-card">
           <p className="text-sm opacity-80">Logged</p>
-          <p className="text-2xl font-bold">{summary.loggedDays}/7</p>
+          <p className="text-3xl font-extrabold">{summary.loggedDays}/7</p>
         </div>
 
-        <div className="rounded-2xl border p-4 y2k-card">
+        <div className="rounded-2xl border p-5 y2k-card">
           <p className="text-sm opacity-80">Gym</p>
-          <p className="text-2xl font-bold">{summary.gymDays}/{GYM_MIN_PER_WEEK}</p>
+          <p className="text-3xl font-extrabold">{summary.gymDays}/{GYM_MIN_PER_WEEK}</p>
         </div>
 
-        <div className="rounded-2xl border p-4 y2k-card">
+        <div className="rounded-2xl border p-5 y2k-card">
           <p className="text-sm opacity-80">700+ (or cheat)</p>
-          <p className="text-2xl font-bold">{summary.metDays}/7</p>
+          <p className="text-3xl font-extrabold">{summary.metDays}/7</p>
         </div>
 
-        <div className="rounded-2xl border p-4 y2k-card">
+        <div className="rounded-2xl border p-5 y2k-card">
           <p className="text-sm opacity-80">Cheat days</p>
-          <p className="text-2xl font-bold">{summary.cheatDays}/{MAX_CHEAT_DAYS_PER_WEEK}</p>
+          <p className="text-3xl font-extrabold">{summary.cheatDays}/{MAX_CHEAT_DAYS_PER_WEEK}</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border p-4 y2k-card">
-        <p className="font-semibold">
-          {summary.weekSuccessful ? 'Week successful ✓' : 'Week not yet'}
+      <div className="rounded-2xl border p-5 y2k-card">
+        <p className="font-extrabold">
+          {summary.weekSuccessful ? 'Week successful' : 'Week not yet'}
         </p>
-        <p className="mt-1 text-sm opacity-80">
+        <p className="mt-2 text-sm opacity-80">
           Calories: {summary.caloriesConsistent ? '7/7 met' : `${summary.metDays}/7 met`} · Gym:{' '}
           {summary.gymConsistent ? '3+ days met' : `${summary.gymDays}/3`}
         </p>
