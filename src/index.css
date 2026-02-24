@@ -1,22 +1,11 @@
 @import "tailwindcss";
 
-/* ======================================================================
-   Pookie Tracker Theme (Pink + Green / Fairycore Sparkles)
-   - Pink background w/ animated sparkles
-   - Green “plates” (no blue/purple)
-   - Readable text on light UI
-   - Solid green cards + mint inputs (no white inset)
-   - Glass buttons
-   - Bigger bottom nav buttons
-   ====================================================================== */
-
 :root{
   --bg-pastel-pink:#FFA9EE;
 
   --hot-pink:#FF0089;
   --hot-pink-2:#FF2AA2;
 
-  /* Green plates */
   --plate-mid:#27F2B4;
   --plate-outer:#11C98F;
 
@@ -33,7 +22,6 @@
   --ease:cubic-bezier(.2,.9,.2,1);
 }
 
-/* ---------- BASE ---------- */
 *,
 *::before,
 *::after{ box-sizing:border-box; }
@@ -52,7 +40,6 @@ body{
   text-rendering:geometricPrecision;
 }
 
-/* iOS/date overflow fix */
 input[type="date"]{
   max-width:100%;
   min-width:0;
@@ -60,7 +47,6 @@ input[type="date"]{
   color-scheme:light;
 }
 
-/* remove number spinners */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button{
   -webkit-appearance:none;
@@ -73,21 +59,25 @@ input[type="number"]{
 }
 
 /* ---------- BACKGROUND + SPARKLES ---------- */
-.y2k-bg { background: rgba(0,0,0,0.08); }
+.y2k-bg{
+  background:
+    radial-gradient(1200px 900px at 18% 10%, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%),
+    radial-gradient(900px 700px at 82% 18%, rgba(255,255,255,0.16), rgba(255,255,255,0) 60%),
+    rgba(255, 169, 238, 0.55);
+}
 
 .sparkles{
   position:relative;
   isolation:isolate;
 }
 
-/* layer 1: tiny stars */
 .sparkles::before{
   content:"";
   position:fixed;
   inset:0;
   pointer-events:none;
   z-index:2;
-  opacity:.65;
+  opacity:.70;
   background:
     radial-gradient(circle at 8% 18%, rgba(255,255,255,.85) 0 1px, transparent 2.6px),
     radial-gradient(circle at 16% 66%, rgba(255,255,255,.65) 0 1px, transparent 2.6px),
@@ -104,14 +94,13 @@ input[type="number"]{
   animation:sparkleFloat 10s linear infinite;
 }
 
-/* layer 2: drifting glitter dots */
 .sparkles::after{
   content:"";
   position:fixed;
   inset:0;
   pointer-events:none;
   z-index:2;
-  opacity:.35;
+  opacity:.40;
   background:
     radial-gradient(circle at 12% 28%, rgba(255,0,137,.22) 0 1.2px, transparent 3.2px),
     radial-gradient(circle at 36% 52%, rgba(108,255,185,.18) 0 1.2px, transparent 3.2px),
@@ -130,8 +119,32 @@ input[type="number"]{
   100%{ background-position:-220px -320px; }
 }
 
-/* keep content above sparkles */
-.sparkles > *{ position:relative; z-index:1; }
+.sparkles > *{ position:relative; z-index:3; }
+
+.sparkles > .sparkle-mask{
+  position:relative;
+  z-index:3;
+}
+
+.sparkles > .sparkle-mask::before{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(36rem, 100%);
+  pointer-events:none;
+  z-index:2;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255,169,238,0.00) 0%,
+      rgba(255,169,238,0.55) 18%,
+      rgba(255,169,238,0.55) 82%,
+      rgba(255,169,238,0.00) 100%
+    );
+}
 
 /* ---------- TYPOGRAPHY / CONTRAST ---------- */
 .y2k-shell,
@@ -155,7 +168,6 @@ input[type="number"]{
   opacity:.95;
 }
 
-/* override zinc shades inside cards to be readable */
 .y2k-card .text-zinc-100,
 .y2k-card .text-zinc-200,
 .y2k-card .text-zinc-300,
@@ -164,38 +176,20 @@ input[type="number"]{
   color:rgba(31,8,48,.88) !important;
 }
 
-/* ---------- MAIN SHELL (green plates) ---------- */
+/* ---------- MAIN SHELL (PLATES via box-shadow, no offset illusion) ---------- */
 .y2k-shell{
   position:relative;
-  background:var(--white);
+  background:rgba(255,255,255,0.97);
   border:3px solid var(--hot-pink);
   border-radius:var(--radius-lg);
-  box-shadow:0 10px 22px rgba(0,0,0,.12);
   overflow:visible;
   z-index:5;
+  box-shadow:
+    0 10px 22px rgba(0,0,0,.12),
+    10px 10px 0 var(--plate-mid),
+    18px 18px 0 var(--plate-outer);
 }
 
-.y2k-shell::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background:var(--plate-mid);
-  transform:translate(10px,10px);
-  z-index:-2;
-}
-
-.y2k-shell::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background:var(--plate-outer);
-  transform:translate(18px,18px);
-  z-index:-3;
-}
-
-/* hot pink header strip */
 .y2k-shell header{
   background:var(--hot-pink);
   border-radius:calc(var(--radius-lg) - 6px);
@@ -210,39 +204,19 @@ input[type="number"]{
   color:var(--white) !important;
 }
 
-/* ---------- CARDS (solid green, no glossy white) ---------- */
+/* ---------- CARDS ---------- */
 .y2k-card{
   position:relative;
   background:linear-gradient(180deg,#34F6B6 0%, #22E7A7 100%);
   border:3px solid var(--hot-pink);
   border-radius:var(--radius-md);
   overflow:hidden;
-  box-shadow:0 10px 22px rgba(0,0,0,.12);
   transform:translateZ(0);
+  box-shadow:
+    0 10px 22px rgba(0,0,0,.12),
+    7px 7px 0 var(--plate-mid),
+    12px 12px 0 var(--plate-outer);
 }
-
-.y2k-card::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background:var(--plate-mid);
-  transform:translate(7px,7px);
-  z-index:-2;
-}
-
-.y2k-card::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background:var(--plate-outer);
-  transform:translate(12px,12px);
-  z-index:-3;
-}
-
-/* kill the old “gloss shine” */
-.y2k-card > :first-child::before{ opacity:0 !important; }
 
 /* ---------- INPUTS ---------- */
 .y2k-input{
@@ -290,31 +264,26 @@ input[type="number"]{
 .y2k-pill-mint{ background:rgba(108,255,185,.22); border-color:rgba(17,201,143,.55); }
 .y2k-pill-red{  background:rgba(255,80,120,.18); border-color:rgba(255,80,120,.35); }
 
-/* ---------- BUTTONS (glassmorphism) ---------- */
+/* ---------- BUTTONS ---------- */
 .y2k-btn{
   position:relative;
   overflow:hidden;
-
   appearance:none;
   border-radius:999px !important;
   padding:16px 18px;
   cursor:pointer;
-
   font-weight:900;
   letter-spacing:.10em;
   text-transform:uppercase;
   font-size:13px;
-
   background:rgba(255,255,255,.22) !important;
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   box-shadow:0 14px 26px rgba(0,0,0,.14) !important;
-
   border-top:1px solid rgba(255,255,255,.55) !important;
   border-left:1px solid rgba(255,255,255,.55) !important;
   border-right:1px solid rgba(255,255,255,.22) !important;
   border-bottom:1px solid rgba(255,255,255,.22) !important;
-
   transition: transform var(--t) var(--ease), filter var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
 
@@ -339,7 +308,6 @@ input[type="number"]{
   opacity:.75;
 }
 
-/* button variants */
 .y2k-btn-primary{
   background:rgba(255,0,137,.30) !important;
   color:rgba(255,255,255,.95) !important;
@@ -354,7 +322,7 @@ input[type="number"]{
   border-left-color:rgba(255,255,255,.55) !important;
 }
 
-/* ---------- BOTTOM NAV (bigger buttons) ---------- */
+/* ---------- BOTTOM NAV ---------- */
 .y2k-nav-wrap{
   position:fixed;
   left:0;
@@ -369,29 +337,13 @@ input[type="number"]{
   border:3px solid var(--hot-pink);
   border-radius:999px;
   padding:14px !important;
-  box-shadow:0 18px 40px rgba(0,0,0,.18);
+  color:var(--ink) !important;
+  box-shadow:
+    0 18px 40px rgba(0,0,0,.18),
+    8px 8px 0 var(--plate-mid),
+    14px 14px 0 var(--plate-outer);
 }
 
-.y2k-nav::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background:var(--plate-mid);
-  transform:translate(8px,8px);
-  z-index:-2;
-}
-.y2k-nav::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background:var(--plate-outer);
-  transform:translate(14px,14px);
-  z-index:-3;
-}
-
-/* if your nav uses Tailwind grid, this selector hits it */
 .y2k-nav .grid{ gap:10px !important; }
 
 .y2k-nav-btn{
@@ -399,13 +351,11 @@ input[type="number"]{
   min-height:44px !important;
   font-size:14px !important;
   line-height:1 !important;
-
   border-radius:999px;
   border:2px solid rgba(17,201,143,.45);
   background:rgba(255,255,255,.92);
   color:var(--ink);
   box-shadow:4px 4px 0 rgba(255,0,137,.22);
-
   transition: transform var(--t) var(--ease), filter var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
 

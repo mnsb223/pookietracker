@@ -172,20 +172,31 @@ export async function resetCountdown(): Promise<void> {
 
 export async function rebuildCountdownFromLogs(args: {
   bmr: number
+  startDate?: string
   endDate?: string
 }): Promise<number> {
+  const startDate = args.startDate && isValidISODate(args.startDate) ? args.startDate : null
   const endDate = args.endDate && isValidISODate(args.endDate) ? args.endDate : todayISO()
+
   const allKeys = await keys()
   let sumOut = 0
 
   for (const key of allKeys) {
     if (typeof key !== 'string') continue
     if (!key.startsWith('log:')) continue
+
     const date = key.slice(4)
     if (!isValidISODate(date)) continue
-    if (date > endDate) continue
+
+    // Only count logs on/after program start date
+    if (startDate && date < startDate) continue
+
+    // Optional upper bound (useful so future logs don't affect today's countdown)
+    if (endDate && date > endDate) continue
+
     const log = await get<DailyLog>(key)
     if (!log) continue
+
     const out = caloriesOut(args.bmr, log.caloriesBurned ?? 0)
     if (Number.isFinite(out)) sumOut += out
   }
@@ -201,41 +212,53 @@ export async function applySaveEffects(args: {
   eaten: number
   burned: number
   cheat: boolean
-}): Promise<{ streak: StreakState; countdown: number; dayDeficit: number; dayOut: number }> {
-  const { date, bmr, eaten, burned, cheat } = args
+  countdownStartDate?: string
+  countdownEndDate?: string
+}): Promise<{
+  streak: StreakState
+  countdown: number
+  dayDeficit: number
+  dayOut: number
+}> {
+  const date = args.date
 
   const prevLog = await getDailyLog(date)
 
-  const newOut = caloriesOut(bmr, burned)
-  const newDef = deficit(newOut, eaten)
+  const prevOut = prevLog ? caloriesOut(args.bmr, prevLog.caloriesBurned ?? 0) : 0
+  const nextOut = caloriesOut(args.bmr, args.burned ?? 0)
+  const deltaOut =
+    (Number.isFinite(nextOut) ? nextOut : 0) - (Number.isFinite(prevOut) ? prevOut : 0)
 
-  const oldOut = prevLog ? caloriesOut(bmr, prevLog.caloriesBurned ?? 0) : 0
-  const deltaOut = newOut - oldOut
+  const dayDeficit = deficit(nextOut, args.eaten ?? 0)
+  const dayOut = nextOut
+
+  const streak = await rebuildStreakFromLogs({ bmr: args.bmr })
+
+  const countdownStartDate =
+    args.countdownStartDate && isValidISODate(args.countdownStartDate)
+      ? args.countdownStartDate
+      : null
+
+  const countdownEndDate =
+    args.countdownEndDate && isValidISODate(args.countdownEndDate)
+      ? args.countdownEndDate
+      : null
+
+  const affectsCountdown =
+    (!countdownStartDate || date >= countdownStartDate) &&
+    (!countdownEndDate || date <= countdownEndDate)
 
   const prevCountdown = await getCountdown()
-  const nextCountdown = clamp(prevCountdown - deltaOut, 0, COUNTDOWN_START)
+  const nextCountdown = affectsCountdown
+    ? clamp(prevCountdown - deltaOut, 0, COUNTDOWN_START)
+    : prevCountdown
+
   await saveCountdown(nextCountdown)
 
-  const prevStreak = await getStreak()
-  const met = cheat ? true : newDef >= MIN_DEFICIT
-
-  let nextStreak: StreakState = { ...prevStreak }
-
-  if (!met) {
-    if (prevStreak.lastDate === date) {
-      nextStreak = { count: 0, lastDate: null }
-    }
-  } else {
-    if (prevStreak.lastDate === date) {
-      nextStreak = prevStreak
-    } else if (prevStreak.lastDate && addDays(prevStreak.lastDate, 1) === date) {
-      nextStreak = { count: (prevStreak.count ?? 0) + 1, lastDate: date }
-    } else {
-      nextStreak = { count: 1, lastDate: date }
-    }
+  return {
+    streak,
+    countdown: nextCountdown,
+    dayDeficit,
+    dayOut,
   }
-
-  await saveStreak(nextStreak)
-
-  return { streak: nextStreak, countdown: nextCountdown, dayDeficit: newDef, dayOut: newOut }
 }
