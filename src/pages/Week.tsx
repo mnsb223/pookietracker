@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getLogsInRange, getProfile } from '../data/store'
+import { getLogsInRange, getProfile, addDays, parseISODate, toISODate, todayISO } from '../data/store'
 import type { DailyLog } from '../lib/types'
 import {
   BONUS_DEFICIT,
@@ -10,58 +10,26 @@ import {
 } from '../lib/config'
 import { caloriesOut, deficit } from '../lib/rules'
 
-function isoToday(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function parseISODate(dateISO: string): Date {
-  const [y, m, d] = dateISO.split('-').map(Number)
-  return new Date(y, (m ?? 1) - 1, d ?? 1)
-}
-
-function toISODate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function addDays(dateISO: string, days: number): string {
-  const d = parseISODate(dateISO)
-  d.setDate(d.getDate() + days)
-  return toISODate(d)
-}
-
-/** Sunday start (Sun–Sat) */
 function startOfWeekSunday(dateISO: string): string {
   const d = parseISODate(dateISO)
-  const day = d.getDay() // Sun=0 ... Sat=6
-  d.setDate(d.getDate() - day)
+  d.setDate(d.getDate() - d.getDay())
   return toISODate(d)
 }
 
 export default function Week() {
-  const [anchorDate, setAnchorDate] = useState<string>(isoToday())
+  const [anchorDate, setAnchorDate] = useState<string>(todayISO())
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [bmr, setBmr] = useState<number>(DEFAULT_BMR)
 
-  // Load BMR once
   useEffect(() => {
     let cancelled = false
-    async function loadProfile() {
+    ;(async () => {
       const profile = await getProfile()
       if (cancelled) return
       if (profile?.bmr) setBmr(profile.bmr)
-    }
-    loadProfile()
-    return () => {
-      cancelled = true
-    }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   const weekStart = useMemo(() => startOfWeekSunday(anchorDate), [anchorDate])
@@ -75,17 +43,14 @@ export default function Week() {
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
+    ;(async () => {
       setLoading(true)
       const weekLogs = await getLogsInRange(weekStart, weekEnd)
       if (cancelled) return
       setLogs(weekLogs)
       setLoading(false)
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
+    })()
+    return () => { cancelled = true }
   }, [weekStart, weekEnd])
 
   const days = useMemo(() => {
@@ -101,17 +66,7 @@ export default function Week() {
 
     const dayStatus = days.map((date) => {
       const log = logsByDate.get(date)
-      if (!log) {
-        return {
-          date,
-          hasLog: false,
-          gym: false,
-          cheat: false,
-          def: 0,
-          met700: false,
-          met1000: false,
-        }
-      }
+      if (!log) return { date, hasLog: false, gym: false, cheat: false, def: 0, met700: false, met1000: false }
 
       loggedDays++
       if (log.gym) gymDays++
@@ -121,9 +76,8 @@ export default function Week() {
 
       const out = caloriesOut(bmr, log.caloriesBurned ?? 0)
       const defValue = deficit(out, log.caloriesEaten ?? 0)
-
       const met700 = isCheat ? true : defValue >= MIN_DEFICIT
-      const met1000 = isCheat ? false : defValue >= BONUS_DEFICIT
+      const met1000 = !isCheat && defValue >= BONUS_DEFICIT
 
       if (met700) metDays++
       if (met1000) dollars++
@@ -133,19 +87,8 @@ export default function Week() {
 
     const caloriesConsistent = metDays === 7 && cheatDays <= MAX_CHEAT_DAYS_PER_WEEK
     const gymConsistent = gymDays >= GYM_MIN_PER_WEEK
-    const weekSuccessful = caloriesConsistent && gymConsistent
 
-    return {
-      dayStatus,
-      loggedDays,
-      gymDays,
-      metDays,
-      dollars,
-      cheatDays,
-      caloriesConsistent,
-      gymConsistent,
-      weekSuccessful,
-    }
+    return { dayStatus, loggedDays, gymDays, metDays, dollars, cheatDays, caloriesConsistent, gymConsistent, weekSuccessful: caloriesConsistent && gymConsistent }
   }, [days, logsByDate, bmr])
 
   return (
@@ -170,20 +113,17 @@ export default function Week() {
         <p className="mt-1 text-xs opacity-80">Using BMR: {bmr}</p>
       </div>
 
-      {/* Bigger calendar grid + show deficit */}
       <div className="rounded-2xl border p-5 y2k-card">
         <div className="grid grid-cols-7 gap-3">
           {summary.dayStatus.map((d, i) => {
             const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i] ?? ''
             const dayNum = d.date.slice(8, 10)
 
-            const base =
-              'rounded-2xl border p-3 text-center font-extrabold flex flex-col justify-between min-h-[110px]'
-            const faded = !d.hasLog ? 'opacity-70' : ''
-            const notMet = d.hasLog && !d.met700 ? 'opacity-95' : ''
-
             return (
-              <div key={d.date} className={`${base} ${faded} ${notMet}`}>
+              <div
+                key={d.date}
+                className={`rounded-2xl border p-3 text-center font-extrabold flex flex-col justify-between min-h-[110px] ${!d.hasLog ? 'opacity-70' : ''}`}
+              >
                 <div>
                   <div className="text-[11px] opacity-80">{dow}</div>
                   <div className="text-xl leading-tight">{dayNum}</div>
@@ -191,9 +131,7 @@ export default function Week() {
 
                 <div className="mt-2">
                   {d.hasLog ? (
-                    <div className="text-sm font-extrabold">
-                      Deficit {d.def.toFixed(0)}
-                    </div>
+                    <div className="text-sm font-extrabold">Deficit {d.def.toFixed(0)}</div>
                   ) : (
                     <div className="text-sm opacity-80">Not logged</div>
                   )}
@@ -202,14 +140,14 @@ export default function Week() {
                 <div className="mt-2 flex justify-center gap-2 text-[12px] font-extrabold">
                   {d.hasLog ? (
                     <>
-                      {d.gym && <span title="Gym">Gym</span>}
-                      {d.cheat && <span title="Cheat">Cheat</span>}
-                      {d.met1000 && !d.cheat && <span title="Bonus">+1</span>}
-                      {!d.cheat && d.met700 && !d.met1000 && <span title="Minimum met">700</span>}
-                      {!d.met700 && <span title="Minimum not met">Low</span>}
+                      {d.gym && <span>Gym</span>}
+                      {d.cheat && <span>Cheat</span>}
+                      {d.met1000 && !d.cheat && <span>+1</span>}
+                      {!d.cheat && d.met700 && !d.met1000 && <span>700</span>}
+                      {!d.met700 && <span>Low</span>}
                     </>
                   ) : (
-                    <span title="Not logged">—</span>
+                    <span>—</span>
                   )}
                 </div>
               </div>

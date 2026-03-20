@@ -15,4 +15,5 @@ export type DailyLog = {
   caloriesBurned: number
   gym: boolean
   cheat?: boolean
+  bmr?: number             // BMR in effect when this day was saved
 }

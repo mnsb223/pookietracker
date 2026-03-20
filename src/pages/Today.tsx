@@ -1,31 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BONUS_DEFICIT, DEFAULT_BMR, MIN_DEFICIT } from '../lib/config'
+import { BONUS_DEFICIT, COUNTDOWN_START, DEFAULT_BMR, MIN_DEFICIT } from '../lib/config'
 import { caloriesOut, deficit } from '../lib/rules'
 import type { DailyLog } from '../lib/types'
 import {
-  applySaveEffects,
   getDailyLog,
   getProfile,
-  rebuildCountdownFromLogs,
-  rebuildStreakFromLogs,
-  resetStreak,
+  rebuildCountdown,
+  rebuildStreak,
   saveDailyLog,
+  todayISO,
 } from '../data/store'
-
-function todayISO(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-const COUNTDOWN_START = 45000
 
 export default function Today(props: { selectedDate?: string }) {
   const [bmr, setBmr] = useState<number>(DEFAULT_BMR)
-  const [date, setDate] = useState<string>(props.selectedDate ?? todayISO())
   const [programStartDate, setProgramStartDate] = useState<string>(todayISO())
+  const [date, setDate] = useState<string>(props.selectedDate ?? todayISO())
 
   const [eaten, setEaten] = useState<string>('')
   const [burned, setBurned] = useState<string>('')
@@ -38,10 +27,12 @@ export default function Today(props: { selectedDate?: string }) {
   const [streak, setStreak] = useState<number>(0)
   const [remaining, setRemaining] = useState<number>(COUNTDOWN_START)
 
+  // Sync date from parent (History click-to-edit)
   useEffect(() => {
     if (props.selectedDate) setDate(props.selectedDate)
   }, [props.selectedDate])
 
+  // Load profile, rebuild derived state, load log for the selected date
   useEffect(() => {
     let cancelled = false
 
@@ -52,27 +43,20 @@ export default function Today(props: { selectedDate?: string }) {
         if (cancelled) return
 
         const bmrValue = profile?.bmr ?? DEFAULT_BMR
-        const startDateValue = profile?.programStartDate ?? todayISO()
-
+        const startDate = profile?.programStartDate ?? todayISO()
         setBmr(bmrValue)
-        setProgramStartDate(startDateValue)
+        setProgramStartDate(startDate)
 
-        const rebuiltStreak = await rebuildStreakFromLogs({ bmr: bmrValue })
+        const [streakCount, newRemaining] = await Promise.all([
+          rebuildStreak(bmrValue),
+          rebuildCountdown(bmrValue, startDate),
+        ])
         if (cancelled) return
-
-        const rebuiltRemaining = await rebuildCountdownFromLogs({
-          bmr: bmrValue,
-          startDate: startDateValue,
-          endDate: todayISO(),
-        })
-        if (cancelled) return
-
-        setStreak(rebuiltStreak.count ?? 0)
-        setRemaining(rebuiltRemaining)
+        setStreak(streakCount)
+        setRemaining(newRemaining)
 
         const log = await getDailyLog(date)
         if (cancelled) return
-
         if (log) {
           setEaten(String(log.caloriesEaten ?? ''))
           setBurned(String(log.caloriesBurned ?? ''))
@@ -85,7 +69,7 @@ export default function Today(props: { selectedDate?: string }) {
           setCheat(false)
         }
       } catch (err) {
-        console.error('Failed to initialize Today page', err)
+        console.error('Failed to load Today', err)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -110,13 +94,10 @@ export default function Today(props: { selectedDate?: string }) {
   const def = useMemo(() => deficit(out, eatenNum), [out, eatenNum])
 
   const met700 = cheat ? true : def >= MIN_DEFICIT
-  const met1000 = cheat ? false : def >= BONUS_DEFICIT
-
-  const recommendedEatZeroBurn = useMemo(() => bmr - MIN_DEFICIT, [bmr])
+  const met1000 = !cheat && def >= BONUS_DEFICIT
 
   const progress = useMemo(() => {
-    const r = Math.max(0, Math.min(COUNTDOWN_START, remaining))
-    return 1 - r / COUNTDOWN_START
+    return 1 - Math.max(0, Math.min(COUNTDOWN_START, remaining)) / COUNTDOWN_START
   }, [remaining])
 
   async function handleSave() {
@@ -126,30 +107,21 @@ export default function Today(props: { selectedDate?: string }) {
       caloriesBurned: burnedNum,
       gym,
       cheat,
+      bmr,
     }
 
     await saveDailyLog(log)
 
-    const effects = await applySaveEffects({
-      date,
-      bmr,
-      eaten: eatenNum,
-      burned: burnedNum,
-      cheat,
-      countdownStartDate: programStartDate,
-      countdownEndDate: todayISO(),
-    })
-
-    setStreak(effects.streak.count ?? 0)
-    setRemaining(effects.countdown)
+    // Always rebuild from all logs — no delta math, no drift
+    const [streakCount, newRemaining] = await Promise.all([
+      rebuildStreak(bmr),
+      rebuildCountdown(bmr, programStartDate),
+    ])
+    setStreak(streakCount)
+    setRemaining(newRemaining)
 
     setSaveState('saved')
     window.setTimeout(() => setSaveState('idle'), 1500)
-  }
-
-  async function handleResetStreak() {
-    await resetStreak()
-    setStreak(0)
   }
 
   return (
@@ -174,13 +146,6 @@ export default function Today(props: { selectedDate?: string }) {
         <div className="rounded-2xl border p-5 y2k-card">
           <p className="text-sm opacity-80">Current streak</p>
           <p className="text-3xl font-extrabold tracking-tight">{streak} days</p>
-          <button
-            type="button"
-            onClick={handleResetStreak}
-            className="mt-3 y2k-btn y2k-btn-ghost w-full"
-          >
-            Reset streak
-          </button>
           <p className="mt-2 text-xs opacity-80">
             Streak increases when a saved day hits at least {MIN_DEFICIT} deficit (cheat days count).
           </p>
@@ -197,7 +162,7 @@ export default function Today(props: { selectedDate?: string }) {
               />
             </div>
             <p className="mt-2 text-xs opacity-80">
-              Countdown starts at {COUNTDOWN_START.toLocaleString()} on {programStartDate}. Each saved day from that date subtracts that day&apos;s calories out.
+              Countdown starts at {COUNTDOWN_START.toLocaleString()} on {programStartDate}. Each saved day subtracts that day&apos;s calories out.
             </p>
           </div>
         </div>
@@ -256,18 +221,10 @@ export default function Today(props: { selectedDate?: string }) {
         </div>
 
         <div className="mt-4 space-y-2">
-          <div className="y2k-card p-4">
-            <p className="text-sm font-extrabold">Recommended calories per day</p>
-            <p className="mt-1 text-sm opacity-90">
-              To hit the minimum deficit with zero active burn, eat about{' '}
-              <span className="font-extrabold">{recommendedEatZeroBurn.toFixed(0)}</span> calories per day.
-            </p>
-          </div>
           <div className="flex gap-2 flex-wrap">
             <span className="y2k-pill y2k-pill-mint">
               {cheat ? 'Cheat counts' : met700 ? '700 met' : `Need ${MIN_DEFICIT}`}
             </span>
-
             <span className="y2k-pill y2k-pill-pink">
               {met1000 ? 'Bonus earned' : cheat ? 'No bonus on cheat' : `Bonus at ${BONUS_DEFICIT}`}
             </span>

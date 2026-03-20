@@ -11,6 +11,8 @@ export const MAX_CHEAT_DAYS_PER_WEEK = 1
 
 export const PROGRAM_WEEKS = 9
 
+export const COUNTDOWN_START = 45000
+
 // Default profile values
 export const DEFAULT_BMR = 1290
 export const DEFAULT_GOAL_WEIGHT = 124

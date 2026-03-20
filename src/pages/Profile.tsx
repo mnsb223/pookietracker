@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DEFAULT_BMR, DEFAULT_GOAL_WEIGHT, MIN_DEFICIT } from '../lib/config'
 import type { Profile } from '../lib/types'
-import { getProfile, saveProfile } from '../data/store'
-
-function todayISO(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+import { getProfile, saveProfile, todayISO } from '../data/store'
 
 export default function Profile() {
   const [loading, setLoading] = useState(false)
@@ -75,7 +67,6 @@ export default function Profile() {
       <div className="flex items-end justify-between">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight y2k-title">Profile</h2>
-          <p className="mt-1 text-sm y2k-subtitle">Make it cute, make it accurate.</p>
         </div>
         {loading && <div className="y2k-pill text-xs">Loading</div>}
       </div>

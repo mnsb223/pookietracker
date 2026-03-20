@@ -1,41 +1,33 @@
 import { get, set, keys } from 'idb-keyval'
 import type { DailyLog, Profile } from '../lib/types'
 import { caloriesOut, deficit } from '../lib/rules'
-import { MIN_DEFICIT } from '../lib/config'
+import { MIN_DEFICIT, COUNTDOWN_START } from '../lib/config'
 
 const PROFILE_KEY = 'profile'
 const STREAK_KEY = 'streak'
 const COUNTDOWN_KEY = 'countdown'
-const COUNTDOWN_START = 45000
 
-type StreakState = {
-  count: number
-  lastDate: string | null
-}
+// --- Date utils (exported so pages don't duplicate them) ---
 
-function logKey(date: string): string {
-  return `log:${date}`
-}
-
-function parseISODate(dateISO: string): Date {
+export function parseISODate(dateISO: string): Date {
   const [y, m, d] = dateISO.split('-').map(Number)
   return new Date(y, (m ?? 1) - 1, d ?? 1)
 }
 
-function toISODate(d: Date): string {
+export function toISODate(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
-function addDays(dateISO: string, days: number): string {
+export function addDays(dateISO: string, days: number): string {
   const d = parseISODate(dateISO)
   d.setDate(d.getDate() + days)
   return toISODate(d)
 }
 
-function todayISO(): string {
+export function todayISO(): string {
   return toISODate(new Date())
 }
 
@@ -47,6 +39,8 @@ function isValidISODate(s: string): boolean {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 }
 
+// --- Profile ---
+
 export async function getProfile(): Promise<Profile | null> {
   const value = await get<Profile>(PROFILE_KEY)
   return value ?? null
@@ -56,21 +50,22 @@ export async function saveProfile(profile: Profile): Promise<void> {
   await set(PROFILE_KEY, profile)
 }
 
+// --- Daily logs ---
+
 export async function getDailyLog(date: string): Promise<DailyLog | null> {
-  const value = await get<DailyLog>(logKey(date))
+  const value = await get<DailyLog>(`log:${date}`)
   return value ?? null
 }
 
 export async function saveDailyLog(log: DailyLog): Promise<void> {
-  await set(logKey(log.date), log)
+  await set(`log:${log.date}`, log)
 }
 
 export async function getLogsInRange(startDate: string, endDate: string): Promise<DailyLog[]> {
   const allKeys = await keys()
   const logs: DailyLog[] = []
   for (const key of allKeys) {
-    if (typeof key !== 'string') continue
-    if (!key.startsWith('log:')) continue
+    if (typeof key !== 'string' || !key.startsWith('log:')) continue
     const date = key.slice(4)
     if (date >= startDate && date <= endDate) {
       const log = await get<DailyLog>(key)
@@ -85,44 +80,34 @@ export async function listLogDates(): Promise<string[]> {
   const allKeys = await keys()
   const dates: string[] = []
   for (const key of allKeys) {
-    if (typeof key !== 'string') continue
-    if (!key.startsWith('log:')) continue
+    if (typeof key !== 'string' || !key.startsWith('log:')) continue
     dates.push(key.slice(4))
   }
   dates.sort((a, b) => b.localeCompare(a))
   return dates
 }
 
-export async function getStreak(): Promise<StreakState> {
-  const value = await get<StreakState>(STREAK_KEY)
-  if (!value || typeof value.count !== 'number') return { count: 0, lastDate: null }
-  return { count: value.count ?? 0, lastDate: value.lastDate ?? null }
+// --- Streak ---
+// Always recomputed from logs — no delta math, no drift.
+
+export async function getStreak(): Promise<number> {
+  const value = await get<number>(STREAK_KEY)
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
 }
 
-export async function saveStreak(next: StreakState): Promise<void> {
-  await set(STREAK_KEY, next)
-}
-
-export async function resetStreak(): Promise<void> {
-  await set(STREAK_KEY, { count: 0, lastDate: null } satisfies StreakState)
-}
-
-export async function rebuildStreakFromLogs(args: {
-  bmr: number
-  endDate?: string
-}): Promise<StreakState> {
-  const endDate = args.endDate && isValidISODate(args.endDate) ? args.endDate : todayISO()
-  let cursor = endDate
+export async function rebuildStreak(bmr: number): Promise<number> {
+  const end = todayISO()
+  let cursor = end
   let lastQualifying: string | null = null
 
+  // Walk backwards to find the most recent qualifying day
   for (let i = 0; i < 365; i++) {
     const log = await getDailyLog(cursor)
     if (log) {
-      const isCheat = !!log.cheat
-      const out = caloriesOut(args.bmr, log.caloriesBurned ?? 0)
-      const defValue = deficit(out, log.caloriesEaten ?? 0)
-      const met = isCheat ? true : defValue >= MIN_DEFICIT
-      if (met) {
+      const effectiveBmr = log.bmr ?? bmr
+      const out = caloriesOut(effectiveBmr, log.caloriesBurned ?? 0)
+      const def = deficit(out, log.caloriesEaten ?? 0)
+      if (log.cheat || def >= MIN_DEFICIT) {
         lastQualifying = cursor
         break
       }
@@ -131,30 +116,30 @@ export async function rebuildStreakFromLogs(args: {
   }
 
   if (!lastQualifying) {
-    const next = { count: 0, lastDate: null }
-    await saveStreak(next)
-    return next
+    await set(STREAK_KEY, 0)
+    return 0
   }
 
+  // Count consecutive qualifying days backwards from lastQualifying
   let count = 0
   cursor = lastQualifying
-
   for (let i = 0; i < 365; i++) {
     const log = await getDailyLog(cursor)
     if (!log) break
-    const isCheat = !!log.cheat
-    const out = caloriesOut(args.bmr, log.caloriesBurned ?? 0)
-    const defValue = deficit(out, log.caloriesEaten ?? 0)
-    const met = isCheat ? true : defValue >= MIN_DEFICIT
-    if (!met) break
-    count += 1
+    const effectiveBmr = log.bmr ?? bmr
+    const out = caloriesOut(effectiveBmr, log.caloriesBurned ?? 0)
+    const def = deficit(out, log.caloriesEaten ?? 0)
+    if (!log.cheat && def < MIN_DEFICIT) break
+    count++
     cursor = addDays(cursor, -1)
   }
 
-  const next: StreakState = { count, lastDate: lastQualifying }
-  await saveStreak(next)
-  return next
+  await set(STREAK_KEY, count)
+  return count
 }
+
+// --- Countdown ---
+// Always recomputed from logs — no delta math, no drift.
 
 export async function getCountdown(): Promise<number> {
   const value = await get<number>(COUNTDOWN_KEY)
@@ -162,103 +147,26 @@ export async function getCountdown(): Promise<number> {
   return clamp(value, 0, COUNTDOWN_START)
 }
 
-export async function saveCountdown(next: number): Promise<void> {
-  await set(COUNTDOWN_KEY, clamp(next, 0, COUNTDOWN_START))
-}
-
-export async function resetCountdown(): Promise<void> {
-  await set(COUNTDOWN_KEY, COUNTDOWN_START)
-}
-
-export async function rebuildCountdownFromLogs(args: {
-  bmr: number
-  startDate?: string
-  endDate?: string
-}): Promise<number> {
-  const startDate = args.startDate && isValidISODate(args.startDate) ? args.startDate : null
-  const endDate = args.endDate && isValidISODate(args.endDate) ? args.endDate : todayISO()
-
+export async function rebuildCountdown(bmr: number, startDate?: string): Promise<number> {
+  const end = todayISO()
   const allKeys = await keys()
   let sumOut = 0
 
   for (const key of allKeys) {
-    if (typeof key !== 'string') continue
-    if (!key.startsWith('log:')) continue
-
+    if (typeof key !== 'string' || !key.startsWith('log:')) continue
     const date = key.slice(4)
     if (!isValidISODate(date)) continue
-
-    // Only count logs on/after program start date
-    if (startDate && date < startDate) continue
-
-    // Optional upper bound (useful so future logs don't affect today's countdown)
-    if (endDate && date > endDate) continue
+    if (startDate && isValidISODate(startDate) && date < startDate) continue
+    if (date > end) continue
 
     const log = await get<DailyLog>(key)
     if (!log) continue
-
-    const out = caloriesOut(args.bmr, log.caloriesBurned ?? 0)
+    const effectiveBmr = log.bmr ?? bmr
+    const out = caloriesOut(effectiveBmr, log.caloriesBurned ?? 0)
     if (Number.isFinite(out)) sumOut += out
   }
 
   const remaining = clamp(COUNTDOWN_START - sumOut, 0, COUNTDOWN_START)
-  await saveCountdown(remaining)
+  await set(COUNTDOWN_KEY, remaining)
   return remaining
-}
-
-export async function applySaveEffects(args: {
-  date: string
-  bmr: number
-  eaten: number
-  burned: number
-  cheat: boolean
-  countdownStartDate?: string
-  countdownEndDate?: string
-}): Promise<{
-  streak: StreakState
-  countdown: number
-  dayDeficit: number
-  dayOut: number
-}> {
-  const date = args.date
-
-  const prevLog = await getDailyLog(date)
-
-  const prevOut = prevLog ? caloriesOut(args.bmr, prevLog.caloriesBurned ?? 0) : 0
-  const nextOut = caloriesOut(args.bmr, args.burned ?? 0)
-  const deltaOut =
-    (Number.isFinite(nextOut) ? nextOut : 0) - (Number.isFinite(prevOut) ? prevOut : 0)
-
-  const dayDeficit = deficit(nextOut, args.eaten ?? 0)
-  const dayOut = nextOut
-
-  const streak = await rebuildStreakFromLogs({ bmr: args.bmr })
-
-  const countdownStartDate =
-    args.countdownStartDate && isValidISODate(args.countdownStartDate)
-      ? args.countdownStartDate
-      : null
-
-  const countdownEndDate =
-    args.countdownEndDate && isValidISODate(args.countdownEndDate)
-      ? args.countdownEndDate
-      : null
-
-  const affectsCountdown =
-    (!countdownStartDate || date >= countdownStartDate) &&
-    (!countdownEndDate || date <= countdownEndDate)
-
-  const prevCountdown = await getCountdown()
-  const nextCountdown = affectsCountdown
-    ? clamp(prevCountdown - deltaOut, 0, COUNTDOWN_START)
-    : prevCountdown
-
-  await saveCountdown(nextCountdown)
-
-  return {
-    streak,
-    countdown: nextCountdown,
-    dayDeficit,
-    dayOut,
-  }
 }
